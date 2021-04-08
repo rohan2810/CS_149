@@ -67,6 +67,7 @@ struct nlist *insert(char *command, int pid, int index) {
         np->next = hashtab[hashval];
         hashtab[hashval] = np;
     } else { /* case 2: the pid is already there in the hashslot, i.e. lookup found the pid. In this case you can either do nothing, or you may want to set again the command  and index (depends on your implementation). */
+        np->pid = pid;
         np->index = index;
         np->command = command;
     }
@@ -79,14 +80,11 @@ void doExecvp(char lineToParse[], int commandNum) {
 
     //make name of the file
     int pid = getpid();
-    char pidArr[10];
+    char pidArr[20];
 
     //convert int to string
-    sprintf(pidArr, "%d", pid);
+    sprintf(pidArr, "%d.out", pid);
 
-    //concatenate pidArr with string ".out"
-    char addMe[] = ".out";
-    strcat(pidArr, addMe);
 
     int f_write = open(pidArr, O_RDWR | O_CREAT | O_TRUNC, 0777);
     //creates a copy of the file descriptor f_write
@@ -120,18 +118,13 @@ void doExecvp(char lineToParse[], int commandNum) {
 
     //Execvp fails: ----------------------------------------
     //make name of the file
-    char pidArrforError[10];
+    char pidArrforError[20];
     //convert int pid to string
-    sprintf(pidArrforError, "%d", pid);
-    char addMeError[] = ".err";
-    // concatenate
-    strcat(pidArrforError, addMeError);
+    sprintf(pidArrforError, "%d.err", pid);
 
     int f_err = open(pidArrforError, O_RDWR | O_CREAT | O_TRUNC, 0777);
     dup2(f_err, fileno(stderr));
-
     perror("Execvp failed\n");
-
     close(f_err);
 
 }
@@ -155,26 +148,42 @@ int main(int argc, const char *argv[]) {
     int commandNum = 0;
     struct timespec start;
     struct timespec finish;
-    entry_new = (struct nlist *) malloc(sizeof(struct nlist));
+//    entry_new ;
+//            (struct nlist *) malloc(sizeof(struct nlist));
     myNode = (struct nlist *) malloc(sizeof(struct nlist));
     //new line is recorded from text file
     while (fgets(result, 100, fp)) {
         commandNum++;
         clock_gettime(CLOCK_MONOTONIC, &start);
+        myNode->starttime = (int) start.tv_sec;
         int pid = fork();
-        if (pid == 0) { //child process
-            doExecvp(entry_new->command, commandNum);
+        if (pid < 0) { //child process
+            fprintf(stderr, "error forking");
+            exit(1);
+        } else if (pid == 0) {
+            doExecvp(result, commandNum);
             exit(0);
+
         } else if (pid > 0) {
-            //do nothing
             entry_new = insert(result, pid, commandNum);
+            clock_gettime(CLOCK_MONOTONIC, &start);
             entry_new->starttime = (int) start.tv_sec;
             entry_new->command = result;
             entry_new->index = commandNum;
 
-        } else {
-            printf("Error in forking.\n");
-            exit(1);
+            /*char pidArr[20];
+            sprintf(pidArr, "%d.out", pid);
+            int fdout = open(pidArr, O_RDWR | O_CREAT | O_TRUNC,0777);
+            dup2(fdout, fileno(stdout));
+
+            char pidArrforError[20];
+            sprintf(pidArrforError, "%d.out", pid);
+            int fderr = open(pidArrforError, O_RDWR | O_CREAT | O_TRUNC,0777);
+            dup2(fderr, fileno(stdout));
+
+            close(fdout);
+            close(fderr);*/
+
         }
 
 
@@ -185,13 +194,11 @@ int main(int argc, const char *argv[]) {
 
     while ((wpid = wait(&status)) > 0) {
         if (wpid > 0) {
+            clock_gettime(CLOCK_MONOTONIC, &finish);
             myNode = lookup(wpid);
 
             char pidArr[10];
-            sprintf(pidArr, "%d", wpid);
-            char addMe[] = ".out";
-            // concatenate
-            strcat(pidArr, addMe);
+            sprintf(pidArr, "%d.out", wpid);
 
             int f_write = open(pidArr, O_RDWR | O_CREAT | O_TRUNC, 0777);
             dup2(f_write, fileno(stdout));
@@ -200,14 +207,12 @@ int main(int argc, const char *argv[]) {
             //make name of the file
             char pidArrforError[10];
             //convert int pid to string
-            sprintf(pidArrforError, "%d", wpid);
-            char addMeError[] = ".err";
-            // concatenate
-            strcat(pidArrforError, addMeError);
-
+            sprintf(pidArrforError, "%d.err", wpid);
 
             int f_err = open(pidArrforError, O_RDWR | O_CREAT | O_TRUNC, 0777);
             dup2(f_err, fileno(stderr));
+
+
             //Normal termination with exit code
             if (WIFEXITED(status)) {
                 fprintf(stderr, "Exited with exitcode = %d\n", WEXITSTATUS(status));
@@ -217,15 +222,14 @@ int main(int argc, const char *argv[]) {
                 fprintf(stderr, "Killed with signal = %d\n", WTERMSIG(status));
             }
 
-            int elapsed;
-            clock_gettime(CLOCK_MONOTONIC, &finish);
+            int elapsedtime;
+            elapsedtime = ((int) finish.tv_sec - myNode->starttime);
             fprintf(stdout, "Starting Command: %d child %d pid of parent %d \n", myNode->index, wpid, getppid());
-            elapsed = ((int) finish.tv_sec - myNode->starttime);
-            fprintf(stdout, "Finished child %d pid of parent %d\n", myNode->pid, getppid());
-            fprintf(stdout, "Finished at %d, runtime duration: %d \n", (int) finish.tv_sec, elapsed);
+            fprintf(stdout, "Finished child %d pid of parent %d\n", wpid, getppid());
+            fprintf(stdout, "Finished at %d, runtime duration: %d \n", (int) finish.tv_sec, elapsedtime);
             fflush(stdout);
 
-            if (elapsed > 2) {
+            if (elapsedtime > 2) {
                 myNode->starttime = (int) finish.tv_sec;
                 wpid = fork();
 
@@ -233,14 +237,13 @@ int main(int argc, const char *argv[]) {
                     fprintf(stderr, "fork failed");
                     exit(1);
                 } else if (wpid == 0) {
-                    doExecvp(myNode->command, commandNum);
-                    exit(0);
-                } else {
-                    myNode = insert(result, wpid, commandNum);
+                    doExecvp(result, commandNum);
+                } else if (wpid > 0) {
+                    entry_new = insert(result, wpid, commandNum);
                     clock_gettime(CLOCK_MONOTONIC, &start); //get time
-                    myNode->starttime = (int) start.tv_sec;
-                    myNode->command = result;
-                    myNode->pid = wpid;
+                    entry_new->starttime = (int) start.tv_sec;
+                    entry_new->index = myNode->index;
+                    entry_new->command = myNode->command;
                 }
             } else {
                 fprintf(stderr, "spawning too fast\n");
