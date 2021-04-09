@@ -44,7 +44,6 @@ struct nlist *lookup(int pid) {
 
 
 
-/* insert: put (name, defn) in hashtab */
 /* TODO: change this to insert in hash table the info for a new pid and its command */
 /* TODO: change signature to: struct nlist *insert(char *command, int pid, int index). */
 /* This insert returns a nlist node. Thus when you call insert in your main function  */
@@ -61,15 +60,16 @@ struct nlist *insert(char *command, int pid, int index) {
         if (np == NULL || (np->command = strdup(command)) == NULL)
             return NULL;
         np->pid = pid;
-        np->command = command;
         np->index = index;
         hashval = hash(pid);
         np->next = hashtab[hashval];
         hashtab[hashval] = np;
     } else { /* case 2: the pid is already there in the hashslot, i.e. lookup found the pid. In this case you can either do nothing, or you may want to set again the command  and index (depends on your implementation). */
-        np->pid = pid;
+        free((void *) np->command);
+        if ((np->command = strdup(command)) == NULL) {
+            return NULL;
+        }
         np->index = index;
-        np->command = command;
     }
     return np;
 }
@@ -109,7 +109,7 @@ void doExecvp(char lineToParse[], int commandNum) {
     input[index] = NULL;
 
     //printing to the out file
-    fprintf(stdout, "Finished child %d pid of parent %d\n", getpid(), getppid());
+    //fprintf(stdout,"Finished child %d pid of parent %d\n", getpid(), getppid());
     fflush(stdout);
     close(f_write);
 
@@ -144,114 +144,113 @@ int main(int argc, const char *argv[]) {
         return 1;
     }
 
+    // create a struct timespec for start and finish to maintain time of processes
     char result[100];
     int commandNum = 0;
     struct timespec start;
     struct timespec finish;
-//    entry_new ;
-//            (struct nlist *) malloc(sizeof(struct nlist));
-    myNode = (struct nlist *) malloc(sizeof(struct nlist));
     //new line is recorded from text file
     while (fgets(result, 100, fp)) {
         commandNum++;
+        // get time of process
         clock_gettime(CLOCK_MONOTONIC, &start);
-        myNode->starttime = (int) start.tv_sec;
+        // fork
         int pid = fork();
         if (pid < 0) { //child process
             fprintf(stderr, "error forking");
             exit(1);
-        } else if (pid == 0) {
+        }
+            // child process
+            // call helper method provided
+        else if (pid == 0) {
             doExecvp(result, commandNum);
             exit(0);
 
-        } else if (pid > 0) {
-            entry_new = insert(result, pid, commandNum);
-            clock_gettime(CLOCK_MONOTONIC, &start);
-            entry_new->starttime = (int) start.tv_sec;
-            entry_new->command = result;
-            entry_new->index = commandNum;
-
-            /*char pidArr[20];
-            sprintf(pidArr, "%d.out", pid);
-            int fdout = open(pidArr, O_RDWR | O_CREAT | O_TRUNC,0777);
-            dup2(fdout, fileno(stdout));
-
-            char pidArrforError[20];
-            sprintf(pidArrforError, "%d.out", pid);
-            int fderr = open(pidArrforError, O_RDWR | O_CREAT | O_TRUNC,0777);
-            dup2(fderr, fileno(stdout));
-
-            close(fdout);
-            close(fderr);*/
-
         }
-
-
+            // use hashtable created and insert the new pid into hash table
+            // set new starttime
+        else if (pid > 0) {
+            entry_new = insert(result, pid, commandNum);
+            entry_new->starttime = (int) start.tv_sec;
+        }
     }
 
     int wpid;
     int status;
 
     while ((wpid = wait(&status)) > 0) {
-        if (wpid > 0) {
-            clock_gettime(CLOCK_MONOTONIC, &finish);
-            myNode = lookup(wpid);
+        // record finish time
+        // search hashtable for the entry that corresponds to the pid
+        clock_gettime(CLOCK_MONOTONIC, &finish);
+        myNode = lookup(wpid);
 
-            char pidArr[10];
-            sprintf(pidArr, "%d.out", wpid);
-
-            int f_write = open(pidArr, O_RDWR | O_CREAT | O_TRUNC, 0777);
-            dup2(f_write, fileno(stdout));
-
-
-            //make name of the file
-            char pidArrforError[10];
-            //convert int pid to string
-            sprintf(pidArrforError, "%d.err", wpid);
-
-            int f_err = open(pidArrforError, O_RDWR | O_CREAT | O_TRUNC, 0777);
-            dup2(f_err, fileno(stderr));
+        // create a variable elapsed time which calculates the total time it takes for a process to execute
+        int elapsedtime;
+        elapsedtime = ((int) finish.tv_sec - myNode->starttime);
 
 
-            //Normal termination with exit code
-            if (WIFEXITED(status)) {
-                fprintf(stderr, "Exited with exitcode = %d\n", WEXITSTATUS(status));
-            }
-                //Abnormal Termination with exit signal
-            else if (WIFSIGNALED(status)) {
-                fprintf(stderr, "Killed with signal = %d\n", WTERMSIG(status));
-            }
+        char pidArr[10];
+        sprintf(pidArr, "%d.out", wpid);
 
-            int elapsedtime;
-            elapsedtime = ((int) finish.tv_sec - myNode->starttime);
-            fprintf(stdout, "Starting Command: %d child %d pid of parent %d \n", myNode->index, wpid, getppid());
-            fprintf(stdout, "Finished child %d pid of parent %d\n", wpid, getppid());
-            fprintf(stdout, "Finished at %d, runtime duration: %d \n", (int) finish.tv_sec, elapsedtime);
-            fflush(stdout);
+        int f_write = open(pidArr, O_RDWR | O_CREAT | O_APPEND, 0777);
+        dup2(f_write, fileno(stdout));
 
-            if (elapsedtime > 2) {
-                myNode->starttime = (int) finish.tv_sec;
-                wpid = fork();
+        char pidArrforError[10];
+        sprintf(pidArrforError, "%d.err", wpid);
 
-                if (wpid < 0) { //fork failed
-                    fprintf(stderr, "fork failed");
-                    exit(1);
-                } else if (wpid == 0) {
-                    doExecvp(result, commandNum);
-                } else if (wpid > 0) {
-                    entry_new = insert(result, wpid, commandNum);
-                    clock_gettime(CLOCK_MONOTONIC, &start); //get time
-                    entry_new->starttime = (int) start.tv_sec;
-                    entry_new->index = myNode->index;
-                    entry_new->command = myNode->command;
-                }
-            } else {
-                fprintf(stderr, "spawning too fast\n");
-            }
+        int f_err = open(pidArrforError, O_RDWR | O_CREAT | O_APPEND, 0777);
+        dup2(f_err, fileno(stderr));
 
-            close(f_write);
-            close(f_err);
+
+        //Normal termination with exit code
+        if (WIFEXITED(status)) {
+            fprintf(stderr, "Exited with exitcode = %d\n", WEXITSTATUS(status));
         }
+            //Abnormal Termination with exit signal
+        else if (WIFSIGNALED(status)) {
+            fprintf(stderr, "Killed with signal = %d\n", WTERMSIG(status));
+        }
+
+        // prints when and which process is finished
+        fprintf(stdout, "Finished child %d pid of parent %d\n", wpid, getppid());
+        fprintf(stdout, "Finished at %d, runtime duration: %d \n", (int) finish.tv_sec, elapsedtime);
+        fflush(stdout);
+
+        // checks for if elapsed time is > 2 or if elapsed time is < 2
+        if (elapsedtime > 2) {
+            // record starttime and save the value
+            clock_gettime(CLOCK_MONOTONIC, &start);
+            myNode->starttime = (int) start.tv_sec;
+            // fork
+            int pid2 = fork();
+            if (pid2 < 0) { //fork failed
+                fprintf(stderr, "fork failed");
+                exit(1);
+            }
+
+                // print out the restarting headers for each restarted file
+                // in the cmdfile.txt the sleep 5 and sleep 3 commands will be restarted
+                // use the helper function created and use myNode to access the exact command and index
+            else if (pid2 == 0) {  // child
+                fprintf(stdout, "RESTARTING\n");
+                fprintf(stderr, "RESTARTING\n");
+                doExecvp(myNode->command, myNode->index);
+                exit(0);
+            }
+
+                // insert new pid into hashtable
+                // save start time to the new entry
+            else if (pid2 > 0) {
+                entry_new = insert(myNode->command, pid2, myNode->index);
+                entry_new->starttime = (int) start.tv_sec;
+            }
+        }
+            // if elapsed time is < 2, print that the process is spawning too dast in the .err file
+        else {
+            fprintf(stderr, "spawning too fast\n");
+        }
+        close(f_write);
+        close(f_err);
     }
 
     return 0;

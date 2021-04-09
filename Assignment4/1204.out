@@ -1,0 +1,4 @@
+Starting command 6: child 1204 pid of parent 1198
+     119     321    7579 /etc/passwd
+Finished child 1204 pid of parent 1123
+Finished at 442, runtime duration: 0 

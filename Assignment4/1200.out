@@ -1,0 +1,16 @@
+Starting command 2: child 1200 pid of parent 1198
+total 136
+-rw-r--r--@  1 rohansurana  staff   4563 Apr  2 12:11 dictionary_hashtable.c
+-rw-r--r--   1 rohansurana  staff     51 Apr  8 13:25 cmdfile.txt
+drwxr-xr-x  12 rohansurana  staff    384 Apr  8 22:00 ..
+-rw-r--r--   1 rohansurana  staff   8635 Apr  9 10:51 proc_manager.c
+-rwxr-xr-x   1 rohansurana  staff  50984 Apr  9 10:52 proc_manager
+-rwxr-xr-x   1 rohansurana  staff     50 Apr  9 10:52 1199.out
+-rwxr-xr-x   1 rohansurana  staff     50 Apr  9 10:52 1201.out
+-rwxr-xr-x   1 rohansurana  staff     50 Apr  9 10:52 1200.out
+-rwxr-xr-x   1 rohansurana  staff     50 Apr  9 10:52 1202.out
+-rwxr-xr-x   1 rohansurana  staff     50 Apr  9 10:52 1203.out
+drwxr-xr-x  12 rohansurana  staff    384 Apr  9 10:52 .
+-rwxr-xr-x   1 rohansurana  staff     50 Apr  9 10:52 1204.out
+Finished child 1200 pid of parent 1123
+Finished at 442, runtime duration: 0 
