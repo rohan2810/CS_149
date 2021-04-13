@@ -1,7 +1,7 @@
 #ifndef CONTACT_MODE_H
 #define CONTACT_MODE_H
 
-typedef struct ContactNode_struct {
+typedef struct ContactNode {
     char contactName[50];
     char contactPhoneNum[50];
     struct ContactNode *nextNodePtr;
@@ -11,8 +11,8 @@ void CreateContactNode(ContactNode *thisNode, char nameInit[], char phoneNumInit
 
 void InsertContactAfter(ContactNode *thisNode, ContactNode *newNode);
 
-ContactNode *GetNextContact();
+ContactNode *GetNextContact(ContactNode *contactNode);
 
-void PrintContactNode();
+void PrintContactNode(ContactNode *contactNode);
 
 #endif
